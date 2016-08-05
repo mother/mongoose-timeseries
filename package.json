@@ -1,0 +1,31 @@
+{
+  "name": "mongoose-timeseries",
+  "version": "1.0.0",
+  "description": "a time series data and analytics storage plugin for Mongoose",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaredreich/mongoose-timeseries.git"
+  },
+  "keywords": [
+    "mongoose",
+    "time",
+    "series",
+    "data",
+    "analytics",
+    "mongodb",
+    "storage"
+  ],
+  "author": "Jared Reich <hello@jaredreich.com> (https://jaredreich.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jaredreich/mongoose-timeseries/issues"
+  },
+  "homepage": "https://github.com/jaredreich/mongoose-timeseries#readme"
+}
