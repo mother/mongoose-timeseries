@@ -86,18 +86,20 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
     // count document itself before custom datapoints
     inc['data.count'] = 1
 
-    for (i = 0; i < options.data.length; i++) {
-      var datapoint = options.data[i]
-      var keyBase = 'data.' + datapoint.key
+    if (options.data) {
+      for (i = 0; i < options.data.length; i++) {
+        var datapoint = options.data[i]
+        var keyBase = 'data.' + datapoint.key
 
-      // count
-      key = keyBase + '.count'
-      inc[key] = 1
+        // count
+        key = keyBase + '.count'
+        inc[key] = 1
 
-      // sum
-      if (datapoint.sum) {
-        key = keyBase + '.sum'
-        inc[key] = document[datapoint.key]
+        // sum
+        if (datapoint.sum) {
+          key = keyBase + '.sum'
+          inc[key] = document[datapoint.key]
+        }
       }
     }
 

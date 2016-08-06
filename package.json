@@ -1,6 +1,6 @@
 {
   "name": "mongoose-timeseries",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "a time series data and analytics storage plugin for Mongoose",
   "main": "index.js",
   "directories": {
