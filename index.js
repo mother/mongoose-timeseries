@@ -117,7 +117,6 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
         $inc: inc
       }, { upsert: true, new: true }, function (err, datapoint) {
         if (err) console.log(err)
-        console.log(datapoint)
       })
     }
 
