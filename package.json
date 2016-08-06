@@ -1,6 +1,6 @@
 {
   "name": "mongoose-timeseries",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "a time series data and analytics storage plugin for Mongoose",
   "main": "index.js",
   "directories": {
@@ -29,14 +29,14 @@
   },
   "homepage": "https://github.com/jaredreich/mongoose-timeseries#readme",
   "devDependencies": {
+    "chai": "3.5.0",
     "eslint": "3.2.2",
     "eslint-config-standard": "5.3.5",
     "eslint-plugin-promise": "2.0.0",
-    "eslint-plugin-standard": "2.0.0"
+    "eslint-plugin-standard": "2.0.0",
+    "mocha": "3.0.1"
   },
   "dependencies": {
-    "chai": "3.5.0",
-    "mocha": "3.0.1",
     "mongoose": "4.5.8"
   }
 }
