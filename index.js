@@ -24,7 +24,7 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
   // New model name for every plugin usage
   var TimeSeriesModel = mongoose.model(options.name, TimeSeriesSchema)
 
-  schema.pre('save', function (next) {
+  schema.post('save', function () {
     var document = this
 
     var documentDate
@@ -83,22 +83,18 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
 
     var inc = {}
 
-    // count document itself before custom datapoints
+    // count document itself before custom sumpoints
     inc['data.count'] = 1
 
-    if (options.data) {
-      for (i = 0; i < options.data.length; i++) {
-        var datapoint = options.data[i]
-        var keyBase = 'data.' + datapoint.key
+    if (options.sums) {
+      for (i = 0; i < options.sums.length; i++) {
+        var sumpoint = options.sums[i]
 
-        // count
-        key = keyBase + '.count'
-        inc[key] = 1
+        var keyBase = 'data.' + sumpoint.name
 
-        // sum
-        if (datapoint.sum) {
-          key = keyBase + '.sum'
-          inc[key] = document[datapoint.key]
+        if (has(document, sumpoint.key)) {
+          inc[keyBase + '.sum'] = get(document, sumpoint.key)
+          inc[keyBase + '.count'] = 1
         }
       }
     }
@@ -119,7 +115,21 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
         if (err) console.log(err)
       })
     }
+  })
+}
 
-    next()
+function get (obj, key) {
+  return key.split('.').reduce(function (o, x) {
+    return (typeof o === 'undefined' || o === null) ? o : o[x]
+  }, obj)
+}
+
+function has (obj, key) {
+  return key.split('.').every(function (x) {
+    if (typeof obj !== 'object' || obj === null || !(x in obj)) {
+      return false
+    }
+    obj = obj[x]
+    return true
   })
 }

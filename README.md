@@ -19,7 +19,9 @@ var YourDocumentSchema = new Schema({
    attr1: { type: Schema.Types.ObjectId, ref: 'attr1' },
    attr2: { type: Schema.Types.ObjectId, ref: 'attr2' },
    date: { type: Date, default: Date.now },
-   metric: { type: Number },
+   analytics: {
+     metric: { type: Number }
+   },
    info: {
       sub1: { type: String },
       sub2: { type: String },
@@ -51,10 +53,10 @@ YourDocumentSchema.plugin(timeseries, {
          }
       }
    ],
-   data: [
+   sums: [
       {
-         key: 'metric',
-         sum: true
+         name: 'metric',
+         key: 'analytics.metric'
       }
    ]
 })
@@ -102,55 +104,115 @@ YourDocumentSchema.plugin(timeseries, options3(Object))
 
 #### Options
 
-The collection name of the specific time series data:
 ```js
 name(String)
 ```
+The collection name of the specific time series data.
 
-The custom date key of your schema (if applicable):
-If not set, defaults to ```document._id.getTimeStamp()```
+---
+
 ```js
 dateKey(String)
 ```
+The custom date key of your schema (if applicable).
+If not set, defaults to ```document._id.getTimeStamp()```
 
-The time series intervals you want:
-Can include any or all of ['minute', 'hour', 'day', 'month']
+---
+
 ```js
 intervals(Array)
 ```
+The time series intervals you want:
+Can include any or all of ['minute', 'hour', 'day', 'month']
 
-The unique information you'd like your time series to seperate and store:
+---
+
 ```js
 keys(Array)
 ```
+The unique information you'd like your time series to separate and store.
 
-The name of the key:
+---
+
 ```js
 keys.key(String)
 ```
+The name of the key.
 
-The function that returns your a value to store on the associated key:
-*Defaults to the name of the key*
+---
+
 ```js
 keys.value(Function)
 ```
+The function that returns your a value to store on the associated key:
+*Defaults to the name of the key*
 
-The data you'd like your time series to count and sum:
+---
+
 ```js
-data(Array)
+sums(Array)
+```
+The sums you'd like to keep track of.
+
+---
+
+```js
+sum.name(String)
+```
+The name of the sum.
+
+---
+
+```js
+sum.key(String)
+```
+The key of the sum.
+Can be nested like:
+```js
+'analytics.metrics.metric1'
 ```
 
-The name of the data key:
+## Using the Time Series Data
+
+Now, in your front-end analytics, you can query the time series data like:
 ```js
-data.key(String)
+var startDateFromUI = ...
+var endDateFromUI = ...
+
+TimeSeriesAnalyticsModel.find({
+  interval: 'day',
+  timestamp: {
+    $gte: startDateFromUI,
+    $lte: endDateFromUI
+  }
+} function(err, results) {
+  addAverage(results, 'metric')
+  var avg = totalAverage(results, 'metric')
+})
 ```
 
-Boolean to sum the datapoint (only works for Number attributes)
+And once you collect that data you can perform calculations however you please.
+
+For example, calculate the average:
 ```js
-data.sum(Boolean)
+function addAverage(results, metric) {
+  for (var i = 0; i < results.length, i++) {
+    var result = results[i]
+    result.data[metric].average = result.data[metric].sum / result.data[metric].count
+  }
+}
+
+function totalAverage(results, metric) {
+  var totalSum, totalCount = 0
+  for (var i = 0; i < results.length; i++) {
+    totalSum += results.data[metric].sum
+    totalCount += results.data[metric].count
+  }
+  return totalSum / totalCount
+}
 ```
 
-## Tests (INCOMPLETE)
+## Tests (incomplete)
 
 ```sh
 npm install
