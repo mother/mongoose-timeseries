@@ -2,44 +2,46 @@ var mongoose = require('mongoose')
 var Schema = mongoose.Schema
 
 var TimeSeriesSchema = new Schema({
-  timestamp: { type: Date, default: Date.now, required: true, index: true },
-  interval: { type: String, enum: ['minute', 'hour', 'day', 'month'], required: true },
+  date: {
+    start: { type: Date, index: true },
+    end: { type: Date, index: true }
+  },
+  resolution: { type: String, enum: ['minute', 'hour', 'day', 'month'], required: true },
+  count: { type: Number },
   key: {},
   data: {}
-}, { timestamps: { createdAt: 'created', updatedAt: 'updated' } })
+})
 
 module.exports = exports = function timeSeriesPlugin (schema, options) {
   // Error checking
   if (typeof options === 'undefined' || !options) {
     throw new Error('you must specify the timeseries plugin options object')
   }
-  if (!options.name) {
-    throw new Error('you must specify the timeseries plugin options attribute "name"')
-  } else if (!options.intervals) {
-    throw new Error('you must specify the timeseries plugin options attribute "intervals"')
-  } else if (!options.keys) {
-    throw new Error('you must specify the timeseries plugin options attribute "keys"')
+  if (!options.target) {
+    throw new Error('you must specify the timeseries plugin options attribute "target"')
+  } else if (!options.resolutions) {
+    throw new Error('you must specify the timeseries plugin options attribute "resolutions"')
+  } else if (!options.key) {
+    throw new Error('you must specify the timeseries plugin options attribute "key"')
   }
 
-  // New model name for every plugin usage
-  var TimeSeriesModel = mongoose.model(options.name, TimeSeriesSchema)
+  // New model target for every plugin usage
+  var TimeSeriesModel = mongoose.model(options.target, TimeSeriesSchema)
 
   schema.post('save', function () {
     var document = this
 
-    var documentDate
-    if (options.dateKey) {
-      documentDate = document[options.dateKey]
-    } else {
-      documentDate = document._id.getTimeStamp()
+    var documentDate = document._id.getTimestamp()
+    if (options.dateField) {
+      documentDate = document[options.dateField]
     }
 
     var timestamps = {}
-    for (var i = 0; i < options.intervals.length; i++) {
-      var interval = options.intervals[i]
-      switch (interval) {
+    for (var i = 0; i < options.resolutions.length; i++) {
+      var resolution = options.resolutions[i]
+      switch (resolution) {
         case 'minute':
-          timestamps[interval] = new Date(
+          timestamps[resolution] = new Date(
             documentDate.getFullYear(),
             documentDate.getMonth(),
             documentDate.getDate(),
@@ -48,7 +50,7 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
           )
           break
         case 'hour':
-          timestamps[interval] = new Date(
+          timestamps[resolution] = new Date(
             documentDate.getFullYear(),
             documentDate.getMonth(),
             documentDate.getDate(),
@@ -56,14 +58,14 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
           )
           break
         case 'day':
-          timestamps[interval] = new Date(
+          timestamps[resolution] = new Date(
             documentDate.getFullYear(),
             documentDate.getMonth(),
             documentDate.getDate()
           )
           break
         case 'month':
-          timestamps[interval] = new Date(
+          timestamps[resolution] = new Date(
             documentDate.getFullYear(),
             documentDate.getMonth()
           )
@@ -71,46 +73,58 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
       }
     }
 
-    var keys = {}
-    for (i = 0; i < options.keys.length; i++) {
-      var key = options.keys[i].key
-      if (options.keys[i].value) {
-        keys[key] = options.keys[i].value(document)
+    var key = {}
+    var keyNames = Object.keys(options.key)
+    var keyObject = options.key
+    for (i = 0; i < keyNames.length; i++) {
+      var keyName = keyNames[i]
+      var keyValue = keyObject[keyName]
+      if (typeof keyValue === 'function') {
+        key[keyName] = keyValue(document)
+      } else if (keyValue === 1) {
+        key[keyName] = document[keyName]
       } else {
-        keys[key] = document[key]
+        throw new Error('invalid timeseries plugin option key value (must be 1 or function)')
       }
     }
 
     var inc = {}
+    // count document itself before custom operations
+    inc['count'] = 1
 
-    // count document itself before custom sumpoints
-    inc['data.count'] = 1
-
-    if (options.sums) {
-      for (i = 0; i < options.sums.length; i++) {
-        var sumpoint = options.sums[i]
-
-        var keyBase = 'data.' + sumpoint.name
-
-        if (has(document, sumpoint.key)) {
-          inc[keyBase + '.sum'] = get(document, sumpoint.key)
-          inc[keyBase + '.count'] = 1
+    if (options.data) {
+      var dataNames = Object.keys(options.data)
+      var dataObject = options.data
+      for (i = 0; i < dataNames.length; i++) {
+        var dataName = dataNames[i]
+        var dataValue = dataObject[dataName]
+        var keyBase = 'data.' + dataName
+        if (dataValue.operation === 'sum') {
+          if (has(document, dataValue.source)) {
+            inc[keyBase + '.sum'] = get(document, dataValue.source)
+            inc[keyBase + '.count'] = 1
+          }
         }
       }
     }
 
-    for (i = 0; i < options.intervals.length; i++) {
-      interval = options.intervals[i]
+    for (i = 0; i < options.resolutions.length; i++) {
+      resolution = options.resolutions[i]
 
       var findBy = {
-        timestamp: timestamps[interval],
-        interval: interval,
-        key: keys
+        'date.start': timestamps[resolution],
+        resolution: resolution,
+        key: key
       }
 
-      // Upsert interval
+      var set = {
+        'date.end': new Date()
+      }
+
+      // Upsert resolution
       TimeSeriesModel.findOneAndUpdate(findBy, {
-        $inc: inc
+        $inc: inc,
+        $set: set
       }, { upsert: true, new: true }, function (err, datapoint) {
         if (err) console.log(err)
       })

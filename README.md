@@ -36,29 +36,22 @@ var mongoose = require('mongoose')
 var timeseries = require('mongoose-timeseries')
 
 YourDocumentSchema.plugin(timeseries, {
-   name: 'TimeSeriesDocument',
-   dateKey: 'date',
-   intervals: ['minute', 'day'],
-   keys: [
-      {
-         key: 'attr1'
-      },
-      {
-         key: 'attr2'
-      },
-      {
-         key: 'info',
-         value: function(doc) {
-            return doc.sub1 + doc.sub2 + doc.sub3
-         }
+   target: 'TimeSeriesDocument',
+   dateField: 'date',
+   resolutions: ['minute', 'day'],
+   key: {
+      attr1: 1,
+      attr2: 1,
+      info: function(doc) {
+         return doc.info.sub1 + doc.info.sub2 + doc.info.sub3
       }
-   ],
-   sums: [
-      {
-         name: 'metric',
-         key: 'analytics.metric'
+   },
+   data: {
+      metric: {
+         source: 'analytics.metric',
+         operation: 'sum'
       }
-   ]
+   }
 })
 ```
 
@@ -67,20 +60,21 @@ YourDocumentSchema.plugin(timeseries, {
 Saved time series documents will look like:
 ```
 {
-  interval: 'day',
-  timestamp: Mon Aug 01 2016 00:00:00 GMT-0600(MDT),
-  created: Mon Aug 01 2016 00:51:09 GMT-0600(MDT),
-  updated: Wed Aug 31 2016 22:19:42 GMT-0600(MDT),
+  date: {
+    start: Mon Aug 01 2016 00:00:00 GMT-0600(MDT),
+    end: Mon Aug 01 2016 23:58:42 GMT-0600(MDT)
+  }
+  resolution: 'day',
+  count: 5,
   data: {
-    count: 5,
     metric: {
-      sum: 697,
-      count: 5
+      count: 5,
+      sum: 697
     }
   },
   key: {
-    attr1: 55931aba4f3b26d63810a55d,
-    attr2: 5536011b00a57af8243d7e5b,
+    attr1: '55931aba4f3b26d63810a55d',
+    attr2: '5536011b00a57af8243d7e5b',
     info: 'ABC'
   },
   _id: 57 a50178e47cea6f5d7f1c3b
@@ -105,72 +99,60 @@ YourDocumentSchema.plugin(timeseries, options3(Object))
 #### Options
 
 ```js
-name(String)
+target(String)
 ```
-The collection name of the specific time series data.
+The MongoDB collection name (destination) of the specific time series data.
 
 ---
 
 ```js
-dateKey(String)
+dateField(String)
 ```
-The custom date key of your schema (if applicable).
-If not set, defaults to ```document._id.getTimeStamp()```
+The custom date field of your schema (if applicable).
+If not set, defaults to ```document._id.getTimestamp()```
 
 ---
 
 ```js
-intervals(Array)
+resolutions(Array)
 ```
-The time series intervals you want:
+The time series resolutions you want:
 Can include any or all of ['minute', 'hour', 'day', 'month']
 
 ---
 
 ```js
-keys(Array)
+key(Object)
 ```
 The unique information you'd like your time series to separate and store.
 
----
-
 ```js
-keys.key(String)
+key.'attribute'(Number | Function)
 ```
-The name of the key.
-
----
-
-```js
-keys.value(Function)
-```
-The function that returns your a value to store on the associated key:
-*Defaults to the name of the key*
+For each key, use the number '1' to relay the name, or a function that returns your value to store on the key.
 
 ---
 
 ```js
-sums(Array)
+data(Object)
 ```
-The sums you'd like to keep track of.
-
----
+The data you'd like to keep track of.
 
 ```js
-sum.name(String)
+data.'attribute'.source(String)
 ```
-The name of the sum.
-
----
-
-```js
-sum.key(String)
-```
-The key of the sum.
+The source of the parameter you're tracking.
 Can be nested like:
 ```js
 'analytics.metrics.metric1'
 ```
+
+```js
+data.'attribute'.operation(String)
+```
+The operation to perform. Currently only `'sum'` is supported.
+
+---
 
 ## Using the Time Series Data
 
@@ -180,8 +162,8 @@ var startDateFromUI = ...
 var endDateFromUI = ...
 
 TimeSeriesAnalyticsModel.find({
-  interval: 'day',
-  timestamp: {
+  resolution: 'day',
+  'date.start': {
     $gte: startDateFromUI,
     $lte: endDateFromUI
   }
@@ -218,6 +200,18 @@ function totalAverage(results, metric) {
 npm install
 npm test
 ```
+
+## Assumptions
+
+- Original source documents are a continual stream of data being dumped
+- Documents in the source time-series collection are never themselves found and updated
+
+## To-do
+
+- [ ] Tests
+- [ ] More operations beyond count and sum if possible (average, max, min)
+- [ ] Auto-indexing
+- [ ] Auto-remove (removes source time-series documents automatically after a set interval)
 
 ## License
 
