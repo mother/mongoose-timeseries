@@ -1,17 +1,6 @@
 var mongoose = require('mongoose')
 var Schema = mongoose.Schema
 
-var TimeSeriesSchema = new Schema({
-  date: {
-    start: { type: Date, index: true },
-    end: { type: Date, index: true }
-  },
-  resolution: { type: String, enum: ['minute', 'hour', 'day', 'month'], required: true },
-  count: { type: Number },
-  key: {},
-  data: {}
-})
-
 module.exports = exports = function timeSeriesPlugin (schema, options) {
   // Error checking
   if (typeof options === 'undefined' || !options) {
@@ -25,9 +14,56 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
     throw new Error('you must specify the timeseries plugin options attribute "key"')
   }
 
+  // Declare Schema
+  var TimeSeriesSchema = new Schema({
+    date: {
+      start: { type: Date, index: true },
+      end: { type: Date, index: true }
+    },
+    resolution: { type: String, enum: ['minute', 'hour', 'day', 'month'], required: true },
+    count: { type: Number },
+    key: {},
+    data: {}
+  })
+
+  // Set up time-series document's middleware
+  TimeSeriesSchema.post('find', function (results, next) {
+    for (var i = 0; i < results.length; i++) {
+      var result = results[i]
+
+      if (options.data) {
+        var dataNames = Object.keys(options.data)
+        var dataObject = options.data
+
+        for (var j = 0; j < dataNames.length; j++) {
+          var dataName = dataNames[j]
+          var dataValue = dataObject[dataName]
+
+          if (has(result.data, dataValue.source)) {
+            if (dataValue.calculations.indexOf('average') !== -1) {
+              var average = result.data[dataName].sum / result.data[dataName].count
+              result.data[dataName].average = average
+              if (dataValue.calculations.indexOf('range_min') !== -1) {
+                result.data[dataName].range_min = average - result.data[dataName].min
+              }
+              if (dataValue.calculations.indexOf('range_max') !== -1) {
+                result.data[dataName].range_max = result.data[dataName].max - average
+              }
+            }
+            if (dataValue.calculations.indexOf('range') !== -1) {
+              result.data[dataName].range = result.data[dataName].max - result.data[dataName].min
+            }
+          }
+        }
+      }
+    }
+    next()
+  })
+
   // New model target for every plugin usage
   var TimeSeriesModel = mongoose.model(options.target, TimeSeriesSchema)
 
+  // Hook for the model that the plugin applies to
   schema.post('save', function () {
     var document = this
 
@@ -88,7 +124,11 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
       }
     }
 
+    var updates = {}
+
     var inc = {}
+    var min = {}
+    var max = {}
     // count document itself before custom operations
     inc['count'] = 1
 
@@ -99,10 +139,26 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
         var dataName = dataNames[i]
         var dataValue = dataObject[dataName]
         var keyBase = 'data.' + dataName
-        if (dataValue.operation === 'sum') {
-          if (has(document, dataValue.source)) {
-            inc[keyBase + '.sum'] = get(document, dataValue.source)
+        if (has(document, dataValue.source)) {
+          var value = get(document, dataValue.source)
+          if (dataValue.operations.indexOf('sum') !== -1) {
+            inc[keyBase + '.sum'] = value
             inc[keyBase + '.count'] = 1
+            updates = extend(updates, {
+              $inc: inc
+            })
+          }
+          if (dataValue.operations.indexOf('min') !== -1) {
+            min[keyBase + '.min'] = value
+            updates = extend(updates, {
+              $min: min
+            })
+          }
+          if (dataValue.operations.indexOf('max') !== -1) {
+            max[keyBase + '.max'] = value
+            updates = extend(updates, {
+              $max: max
+            })
           }
         }
       }
@@ -120,12 +176,12 @@ module.exports = exports = function timeSeriesPlugin (schema, options) {
       var set = {
         'date.end': new Date()
       }
+      updates = extend(updates, {
+        $set: set
+      })
 
       // Upsert resolution
-      TimeSeriesModel.findOneAndUpdate(findBy, {
-        $inc: inc,
-        $set: set
-      }, { upsert: true, new: true }, function (err, datapoint) {
+      TimeSeriesModel.findOneAndUpdate(findBy, updates, { upsert: true, new: true }, function (err, datapoint) {
         if (err) console.log(err)
       })
     }
@@ -146,4 +202,16 @@ function has (obj, key) {
     obj = obj[x]
     return true
   })
+}
+
+function extend (objOld, objNew) {
+  var obj = objOld
+  for (var key in objNew) {
+    if (typeof obj[key] === 'object') {
+      extend(obj[key], objNew[key])
+    } else {
+      obj[key] = objNew[key]
+    }
+  }
+  return obj
 }

@@ -49,7 +49,8 @@ YourDocumentSchema.plugin(timeseries, {
    data: {
       metric: {
          source: 'analytics.metric',
-         operation: 'sum'
+         operations: ['sum', 'max', 'min'],
+         calculations: ['average', 'range', 'range_min', 'range_max']
       }
    }
 })
@@ -57,7 +58,7 @@ YourDocumentSchema.plugin(timeseries, {
 
 #### Watch your time series data grow!
 
-Saved time series documents will look like:
+Your saved time series documents will look like:
 ```
 {
   date: {
@@ -69,7 +70,9 @@ Saved time series documents will look like:
   data: {
     metric: {
       count: 5,
-      sum: 697
+      sum: 697,
+      min: 100,
+      max: 200
     }
   },
   key: {
@@ -80,6 +83,38 @@ Saved time series documents will look like:
   _id: 57 a50178e47cea6f5d7f1c3b
 }
 ```
+
+Your queried and found time series documents will look like:
+```
+{
+  date: {
+    start: Mon Aug 01 2016 00:00:00 GMT-0600(MDT),
+    end: Mon Aug 01 2016 23:58:42 GMT-0600(MDT)
+  }
+  resolution: 'day',
+  count: 5,
+  data: {
+    metric: {
+      count: 5,
+      sum: 697,
+      min: 100,
+      max: 200,
+      average: 139.4,
+      range: 100,
+      range_min: 39.4,
+      range_max: 60.6
+    }
+  },
+  key: {
+    attr1: '55931aba4f3b26d63810a55d',
+    attr2: '5536011b00a57af8243d7e5b',
+    info: 'ABC'
+  },
+  _id: 57 a50178e47cea6f5d7f1c3b
+}
+```
+
+This is because the calculations are performed as middleware during Mongoose `Find()` executions.
 
 ## Documentation
 
@@ -148,9 +183,17 @@ Can be nested like:
 ```
 
 ```js
-data.'attribute'.operation(String)
+data.'attribute'.operations(Array of Strings)
 ```
-The operation to perform. Currently only `'sum'` is supported.
+The operations to perform. Currently supports `'sum'`, `'max'`, and `'min'`
+
+```js
+data.'attribute'.calculations(Array of Strings)
+```
+The "post-find" calculations to perform. Currently supports `'average'`, `'range'`, `'range_min'`, and `'range_max'`
+
+`average = sum / count`, `range = max - min`, `range_min = average - min`, (must also include average), `range_max = max - average` (must also include average)
+
 
 ---
 
@@ -168,30 +211,8 @@ TimeSeriesAnalyticsModel.find({
     $lte: endDateFromUI
   }
 } function(err, results) {
-  addAverage(results, 'metric')
-  var avg = totalAverage(results, 'metric')
+  console.log(results)
 })
-```
-
-And once you collect that data you can perform calculations however you please.
-
-For example, calculate the average:
-```js
-function addAverage(results, metric) {
-  for (var i = 0; i < results.length, i++) {
-    var result = results[i]
-    result.data[metric].average = result.data[metric].sum / result.data[metric].count
-  }
-}
-
-function totalAverage(results, metric) {
-  var totalSum, totalCount = 0
-  for (var i = 0; i < results.length; i++) {
-    totalSum += results.data[metric].sum
-    totalCount += results.data[metric].count
-  }
-  return totalSum / totalCount
-}
 ```
 
 ## Tests (incomplete)
@@ -209,9 +230,8 @@ npm test
 ## To-do
 
 - [ ] Tests
-- [ ] More operations beyond count and sum if possible (average, max, min)
 - [ ] Auto-indexing
-- [ ] Auto-remove (removes source time-series documents automatically after a set interval)
+- [ ] Auto-remove (removes source time-series documents automatically after a set interval... capped collection?)
 
 ## License
 
